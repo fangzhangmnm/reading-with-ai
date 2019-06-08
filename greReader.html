@@ -1,0 +1,90 @@
+<textarea id="text">In the early twentieth century, the idea that pianists should be musician-scholars whose playing reflected the way composers wanted their music to sound replaced the notion that pianists should be virtuosos whose performances thrilled audiences with emotional daring and showy displays of technique. One important figure to emerge in the period, though a harpsichordist rather than a pianist, was Wanda Landowska (1879–1959). She demonstrated how the keyboard works of Baroque composers such as Bach, Handel, Scarlatti, and Couperin probably sounded in their own times. It would be a mistake to consider Landowska a classicist, however. She had been born in an age of Romantic playing dominated by Liszt, Leschetizky, and their pupils. Thus she grew up with and was influenced by certain Romantic traditions of performance, whatever the stringency of her musical scholarship; Landowska knew how to hold audiences breathless, and when she gave recitals, they responded with deathlike silence and rapt attention.
+Her playing was Romantic, but it was at least as close in spirit to the style of playing intended by composers of the Baroque (1600–1750) and Classical (1750–1830) eras, as have been the more exacting but less emotionally resonant interpretations of most harpsichordists since Landowska. She had a miraculous quality of touch, a seemingly autonomous left hand; no artist in her generation could clarify with such deftness the polyphonic writing of the Baroque masters. And none could make their music so spring to life.
+Her achievements were the result of a lifetime of scholarship, truly remarkable physical gifts, and resilient rhythm, all combined with excellent judgment about when not to hold the printed note sacrosanct. Of course, developing such judgment demanded considerable experience and imagination. She was a genius at underlining the dramatic and emotional content of a piece, and to do so, she took liberties, all kinds of liberties, while nevertheless preserving the integrity of a composer’s score. In short, her entire musical approach was Romantic: intensely personal, full of light and shade, never pedantic.
+Thanks to Landowska, Bach’s music (originally composed for the harpsichord) now sounded inappropriately thick when played on the piano. One by one, pianists stopped playing Bach’s music as adapted for the piano by Liszt or by Tausig. Then they gradually stopped performing any kind of Baroque music on the piano, even Scarlatti’s. The piano repertoire, it began to be felt, was extensive enough without reverting to transcriptions of Baroque music originally written for the harpsichord—and piano performances of Bach and Scarlatti were, despite the obvious similarities between the harpsichord and the piano, transcriptions, no matter how faithfully the original notes were played. In accordance with this kind of purism came an emphasis on studying composers’ manuscript notations, a relatively new field of musicology that is flourishing even today.</textarea><br/>
+<button onclick="work()">submit</button>
+<div id="div"></div>
+<script>
+
+let stopwords=new Set(["i","me","my","myself","we","our","ours","ourselves","you","your","yours","yourself","yourselves","he","him","his","himself","she","her","hers","herself","it","its","itself","they","them","their","theirs","themselves","what","which","who","whom","this","that","these","those","am","is","are","was","were","be","been","being","have","has","had","having","do","does","did","doing","a","an","the","and","but","if","or","because","as","until","while","of","at","by","for","with","about","against","between","into","through","during","before","after","above","below","to","from","up","down","in","out","on","off","over","under","again","further","then","once","here","there","when","where","why","how","all","any","both","each","few","more","most","other","some","such","no","nor","not","only","own","same","so","than","too","very","s","t","can","will","just","don","should","now"]);
+let regSentenceSplit=/[\n\.\?\;\:\'\"\(\)]+/;
+let regWordSplit=/[ ,-]+/;
+
+function textRank(graph){
+    let n=graph.length;
+    let ws=new Array(n).fill(1),ws_old=new Array(n);
+    for(let _i=0;_i<20;++_i){
+        let t=ws;ws=ws_old;ws_old=t;
+        for(let i=0;i<n;++i){
+            let node=graph[i];
+            let s=0;
+            for(let j of node.keys())
+                s+=node.get(j)*ws_old[j];
+            s=node.size>0?s/node.size:0;
+            ws[i]=0.15+0.85*s;
+        }
+    }
+    return ws;
+}
+function buildWordGraph(iwords){
+    let n=0;iwords.forEach(x=>n=x+1>n?x+1:n);
+    let wordGraph=Array.from(Array(n),(x,i)=>new Map());
+    for(let i=2;i<iwords.length-2;++i){
+        let node=wordGraph[iwords[i]];
+        for(let j=-2;j<=2;++j)if(j!=0){
+            let x=iwords[i+j];
+            node.set(x,(node.get(x)||0)+1);
+        }
+    }
+    return wordGraph;
+}
+function work(){
+    let txt=document.getElementById("text").value;
+    
+    let sentences=txt.split(regSentenceSplit)
+    .map(x=>{return {
+        original:x,
+        segmented:x.toLowerCase().split(regWordSplit).filter(x=>x.length>0)
+    }}).filter(x=>x.segmented.length>0);
+    let words0=[];sentences.forEach(x=>x.segmented.forEach(x=>words0.push(x)));
+    let words=words0.filter(x=>!stopwords.has(x));
+
+    let word2id=new Map(),id2word=[];words.forEach(x=>word2id.has(x)?null:(word2id.set(x,word2id.size),id2word.push(x)));
+
+    let iwords=words.map(x=>word2id.get(x));
+    let isentences=sentences.map(x=>x.segmented.map(x=>word2id.get(x)));
+
+    let wordGraph=buildWordGraph(iwords);
+    let wordRank=textRank(wordGraph);
+    let minRank=Math.min(...wordRank);
+    let maxRank=Math.max(...wordRank);
+    /*console.log(wordRank)
+    console.log(wordRank.sort())
+    console.log(minRank,maxRank)*/
+    let wordSortedRank=getSortedRank(wordRank);
+
+    let html="",toProcess=txt;
+    for(let word of words){
+        let index=toProcess.toLowerCase().indexOf(word);
+        html+=`<font size=3>`
+            +toProcess.slice(0,index).replace("\n","<br/>")
+            +`</font>`;
+
+        let word1=toProcess.slice(index,index+word.length);
+        let rank=wordRank[word2id.get(word)];
+        let sortedRank=wordSortedRank[word2id.get(word)]/wordSortedRank.length;
+        html+=`<font size=${sortedRank*6+3}>${word1}</font>`;
+        //html+=`<sup>${Math.round(sortedRank*100)/100} ${(Math.floor(0.5*(1-sortedRank)*255))} ${Math.round(rank*10)/10} ${color}</sup>`;
+        //html+=`<sup>${Math.round(sortedRank*100)/100}</sup>`;
+        toProcess=toProcess.slice(index+word.length);
+    }
+    html+=toProcess;
+    document.getElementById("div").innerHTML=html;
+}
+function getSortedRank(rank){
+    let sort=Array.from(Array(rank.length),(x,i)=>i).sort((i,j)=>rank[i]-rank[j]);
+    let sortedRank=Array(rank.length);
+    sort.forEach((x,i)=>sortedRank[x]=i);
+    return sortedRank;
+}
+</script>
